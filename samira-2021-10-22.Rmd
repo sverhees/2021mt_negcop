@@ -1,0 +1,229 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+dat <- read_delim("data.csv", delim="\t")
+```
+
+```{r}
+dat
+```
+```{r}
+proficiency <- (dat %>% filter(question == "proficiency") %>% t() %>% as.data.frame() %>% drop_na())[-1,] %>% as.data.frame() %>% rownames_to_column(var = "speaker") %>% filter(speaker != "total")
+proficiency <- data.frame(speaker=proficiency$speaker, proficiency = proficiency$`.`)
+
+```
+
+```{r}
+proficiency
+```
+
+```{r}
+dat <- read_delim("~/dl/data_cropped.csv", delim="\t")
+```
+```{r}
+dat %>% pivot_longer(cols = starts_with("speaker"), values_to = "score") -> dat_long
+```
+
+```{r}
+dat_long
+```
+```{r}
+t.test(score ~ correct, data=dat_long %>% filter(correct != "unclear"))
+```
+
+```{r}
+library(lme4)
+library(lmerTest)
+```
+
+```{r}
+model <- lmer(score ~ correct + (1 + correct|name), data=dat_long, control = lmerControl(optimizer="bobyqa"))
+```
+
+```{r}
+dat
+```
+```{r}
+dat$animate
+```
+
+```{r}
+library(effects)
+```
+
+```{r}
+plot(predictorEffect("correct", model))
+```
+
+```{r}
+dat %>% filter(system == "innovative") %>% pull(aux) %>% unique()
+```
+```{r}
+auxes <- data.frame(aux = c("лъич1и", "гуч1и", "хуч1и"),
+                    aux_anim = c("anim", "neutral", "nonanim"))
+```
+
+```{r}
+dat_long %>% filter(system == "innovative") %>% left_join(auxes, by="aux") -> dat_long_inn
+```
+
+```{r}
+sd(dat_long_inn$score)
+```
+```{r}
+dat_long_inn
+```
+```{r}
+dat_long_inn %>% group_by(animate, aux_anim) %>% summarise(score_sd = sd(score), score = mean(score), n=n())
+```
+
+```{r}
+model <- lmer(score ~ animate*aux_anim + (1|name) + (1|subject), data=dat_long_inn)
+```
+
+```{r}
+summary(model)
+```
+```{r}
+plot(Effect(c("animate", "aux_anim"), model))
+```
+
+```{r}
+dat_long_inn
+```
+```{r}
+dat_long_inn %>% filter(aux_anim == "anim", animate == "yes")
+```
+```{r}
+model <- lm(score ~ number, 
+              data=dat_long_inn %>% filter(aux_value == "an", animate=="yes"))
+```
+
+```{r}
+summary(model)
+```
+```{r}
+plot(Effect("number", model))
+```
+
+
+```{r}
+dat_long
+```
+```{r}
+dat %>% pull(question) %>% unique()
+```
+```{r}
+t.test(score_sd ~ system, data=dat_long %>% group_by(question) %>% summarise(score_sd = sd(score), system=first(system)))
+```
+
+```{r}
+proficiency
+```
+```{r}
+t.test(score_sd ~ proficiency, dat_long %>% group_by(name) %>% summarise(score_sd = sd(score)) %>% left_join(proficiency, by=c('name'= 'speaker')))
+```
+```{r}
+model <- lmer(score ~ system + (1 | name), data=dat_long)
+summary(model)
+```
+
+```{r}
+model <- lmer(score ~ system + (1 | name), data=dat_long %>% filter(animate == "yes"))
+summary(model)
+```
+
+```{r}
+model <- lmer(score ~ system*animate + (1 | name), data=dat_long)
+```
+```{r}
+summary(model)
+```
+
+```{r}
+library(ggfortify)
+```
+```{r}
+dat_long %>% pivot_wider(id_cols=name, names_from=question, values_from=score) -> dat_t
+rownames(dat_t) <- dat_t$name
+dat_t <- dat_t %>% select(-name)
+autoplot(prcomp(dat_t), label=TRUE)
+```
+
+```{r}
+library(corrplot)
+```
+
+```{r}
+dat %>% select(starts_with("speaker"))
+```
+```{r}
+corrplot(cor(dat %>% select(starts_with("speaker"))), method = 'color')
+```
+
+```{r}
+install.packages("ggbeeswarm")
+```
+```{r}
+library(ggbeeswarm)
+```
+
+```{r}
+dat %>% select(speaker16, speaker22) %>% ggplot(aes(y=speaker16, x=speaker22)) + geom_beeswarm()
+```
+
+```{r}
+model <- lm(score ~ human, 
+              data=dat_long %>% filter(aux_value == "an", animate=="yes"))
+summary(model)
+```
+
+```{r}
+model <- lm(score ~ human, 
+              data=dat_long %>% filter(aux_value == "anpl", animate=="yes"))
+summary(model)
+```
+```{r}
+model <- lm(score ~ human, 
+              data=dat_long %>% filter(aux_value == "n", animate=="yes"))
+summary(model)
+```
+
+
+```{r}
+t.test(score ~ number, data=dat_long %>% filter(correct == "yes") %>% filter(system == "inherited"))
+```
+
+```{r}
+model <- lm(score ~ number + human, 
+              data=dat_long_inn %>% filter(aux_value == "an", animate=="yes"))
+
+summary(model)
+```
+
+
+```{r}
+
+model <- lm(score ~ human, 
+              data=dat_long %>% filter(aux_value == "n", animate=="yes"))
+summary(model)
+
+```
+
+```{r}
+
+model <- lm(score ~ system, 
+              data=dat_long %>% filter(animate=="yes"))
+summary(model)
+
+```
+
+
+
