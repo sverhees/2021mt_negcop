@@ -1,0 +1,249 @@
+---
+title: "Animacy agreement in non-verbal predication in Botlikh"
+subtitle: "average scores, linear models and graphs"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+
+#packages
+
+#data manipulation
+library(tidyverse)
+
+#linear models
+library(lme4)
+library(lmerTest)
+
+#plots
+library(effects)
+library(corrplot)
+library(wesanderson)
+
+```
+
+```{r}
+#data
+setwd("/home/samira/Git/2021mt_negcop")
+dat <- read_tsv("data.csv")
+
+no_prof <- dat[-1,]
+
+dat %>% pivot_longer(cols = starts_with("speaker"), values_to = "score") -> dat_long
+
+proficiency <- (dat %>% filter(question == "proficiency") %>% t() %>% as.data.frame() %>% drop_na())[-1,] %>% as.data.frame() %>% rownames_to_column(var = "speaker") %>% filter(speaker != "total")
+proficiency <- data.frame(speaker=proficiency$speaker, proficiency = proficiency$`.`)
+
+```
+
+# Preliminary
+
+## Speaker variation
+
+```{r}
+
+corrplot(cor(dat %>% select(starts_with("speaker"))), method = 'color')
+
+```
+
+## Score deviation by speaker proficiency (yes/no)
+
+```{r}
+
+t.test(score_sd ~ proficiency, dat_long %>% group_by(name) %>% summarise(score_sd = sd(score)) %>% left_join(proficiency, by=c('name'= 'speaker')))
+
+```
+
+## Average score of correct examples
+
+```{r}
+model <- lmer(score ~ correct + (1 + correct|name), data=dat_long, control = lmerControl(optimizer="bobyqa"))
+summary(model)
+```
+
+```{r}
+plot(predictorEffect("correct", model))
+```
+
+# Score of each auxiliary with animate/inanimate referents
+
+```{r}
+
+aux_nr <- no_prof %>%
+  select(aux, animate)%>%
+  group_by(aux, animate) %>%
+  summarise(nr = n())
+
+aux_score <- no_prof %>%
+  select(aux, animate, avg)%>%
+  group_by(aux, animate) %>%
+  summarise(score = sum(avg))
+
+aux_score$nr <- aux_nr$nr
+aux_score$avg_score <- (aux_score$score / aux_score$nr)
+
+aux_score
+
+```
+
+# Innovative system
+
+## Inanimate auxiliary
+
+```{r}
+
+books <- dat %>%
+  filter(subject_en %in% c("book", "books")) %>%
+  filter(system == "innovative") %>%
+  select(subject_en, aux, avg)
+
+books
+
+```
+
+## Animate auxiliary
+
+```{r}
+
+li <- no_prof[(no_prof$aux == "лъич1и"),]
+
+li_nr <- li %>%
+  select(subject_en, number, avg) %>%
+  group_by(subject_en, number) %>%
+  summarise(nr=n())
+
+li_score <- li %>%
+  select(subject_en, number, avg) %>%
+  group_by(subject_en, number) %>%
+  summarise(score=sum(avg))
+
+li_score$nr <- li_nr$nr
+li_score$avg_score <- (li_score$score / li_score$nr)
+
+li_score
+
+```
+
+### Number effect
+
+```{r}
+
+model <- lm(score ~ number, 
+              data=dat_long %>% filter(aux_value == "an", animate=="yes"))
+summary(model)
+
+```
+
+```{r}
+plot(Effect("number", model))
+```
+
+### Animate category effect
+
+```{r}
+
+model <- lm(score ~ human, 
+              data=dat_long %>% filter(aux_value == "an", animate=="yes"))
+summary(model)
+
+```
+
+```{r}
+plot(Effect("human", model))
+```
+
+## Distribution of innovative auxiliaries
+
+```{r}
+
+innov <- no_prof[(no_prof$system == "innovative"),]
+
+q2 <- innov %>%
+  mutate(subject = fct_reorder(subject_en, desc(avg))) %>%
+  ggplot(aes(x=subject, y=avg))+
+  geom_line(aes(colour = aux, group = aux))+
+  geom_point(aes(colour = aux))+
+  scale_color_manual(values=wes_palette(n=3, name="Moonrise3"))+
+  theme_classic()
+
+q2 + theme(axis.text.x = element_text(angle = 50, vjust = 1, hjust=1),
+           axis.title.x=element_blank(), 
+           axis.title.y=element_blank())
+
+```
+
+# Inherited
+
+## Compared to innovative
+
+```{r}
+
+an <- no_prof %>%
+  filter(aux %in% c("лъич1и", "рук1ич1а"))
+
+q3 <- ggplot(an, aes(fct_reorder(subject_en, desc(avg)), avg)) + 
+  geom_line(aes(colour = aux, group = aux))+
+  geom_point(aes(colour = aux))+
+  scale_color_manual(values=c("#006B3C", "#8A2BE2"))+
+  theme_classic()
+
+q3 + theme(axis.text.x = element_text(angle = 50, vjust = 1, hjust=1),
+           axis.title.x=element_blank(), 
+           axis.title.y=element_blank())
+
+```
+
+```{r}
+
+model <- lm(score ~ system, 
+              data=dat_long %>% filter(animate=="yes"))
+summary(model)
+
+```
+
+## Animate category
+
+### For the animate plural
+
+```{r}
+model <- lm(score ~ human, 
+              data=dat_long %>% filter(aux_value == "anpl"))
+summary(model)
+```
+
+### For the neuter singular / inanimate plural form
+
+```{r}
+model <- lm(score ~ human, 
+              data=dat_long %>% filter(aux_value == "n"))
+summary(model)
+```
+
+## Number
+
+compare avg_score for correct = yes + number = pl
+
+```{r}
+
+inherited_nr <- no_prof %>%
+  filter(system == "inherited") %>%
+  select(aux, correct, number, avg) %>%
+  group_by(aux, correct, number) %>%
+  summarise(nr=n())
+
+inherited_nrscore <- no_prof %>%
+  filter(system == "inherited") %>%
+  select(aux, correct, number, avg) %>%
+  group_by(aux, correct, number) %>%
+  summarise(score=sum(avg))
+
+inherited_nrscore$nr <- inherited_nr$nr
+inherited_nrscore$avg_score <- (inherited_nrscore$score / inherited_nrscore$nr)
+
+inherited_nrscore
+
+```
+
+
+
